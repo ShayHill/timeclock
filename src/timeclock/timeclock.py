@@ -183,3 +183,30 @@ def _overwrite_date_file(entries: list[str], date: str | None = None) -> None:
     report = _generate_report(entries)
     with filename.open("w") as file:
         _ = file.write("\n".join([*entries, _REPORT_DELIMITER, report]))
+
+
+# ===================================================================================
+#   find clock in and clock out times
+# ===================================================================================
+
+
+def _find_latest_entries() -> tuple[str | None, list[str]]:
+    """Return the stem of the file with the latest entries. None if no entries.
+
+    Will ignore empty files in case you manually edited a file to remove all entries
+    and did not delete it.
+    """
+    for data_file in reversed(list(_DATA_DIR.iterdir())):
+        entries = _read_date_file(data_file.stem)
+        if not entries:
+            continue
+        return data_file.stem, entries
+    return None, []
+
+
+def _find_latest_clock_in() -> tuple[str | None, list[str]]:
+    """Return the stem of the file with the latest clock in. None if not clocked in."""
+    yymmdd, entries = _find_latest_entries()
+    if _is_clocked_in(entries):
+        return yymmdd, entries
+    return None, []
