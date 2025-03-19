@@ -9,6 +9,7 @@
 from __future__ import annotations
 from timeclock import timeclock as mod
 
+import shutil
 
 import datetime
 
@@ -55,7 +56,7 @@ class TestInterpretTimeEntries:
 
     def test_get_cumulative_time(self):
         """Only testing clocked out cumulative time. Clocked in time would require
-        somehow moccing the current time.
+        mocking the current time.
         """
         entries = [
             "240919 13:45",
@@ -67,10 +68,6 @@ class TestInterpretTimeEntries:
 
 
 class TestReadAndWriteTimeEntries:
-    def test_get_date_filename(self):
-        assert mod._get_date_filename("240919") == mod._DATA_DIR / "240919.txt"
-        today = mod._now_str()[:6]
-        assert mod._get_date_filename() == mod._DATA_DIR / f"{today}.txt"
 
     def test_read_date_file(self):
         test_lines = [
@@ -81,40 +78,52 @@ class TestReadAndWriteTimeEntries:
             "blah blah blah",
         ]
 
-        with patch("timeclock.timeclock._DATA_DIR", TEMP_DIR):
-            test_file = mod._get_date_filename("240919")
-            _ = test_file.write_text("\n".join(test_lines))
-            result = mod._read_date_file("240919")
-        assert result == ["240919 13:45", "240919 14:45"]
+        data_dir = TEMP_DIR / "timeclock_data"
+        data_dir.mkdir(exist_ok=True)
+        test_file = data_dir / "240919.txt"
+        _ = test_file.write_text("\n".join(test_lines))
+        result = mod._read_data_file(test_file)
+        try:
+            assert result == ["240919 13:45", "240919 14:45"]
+        except AssertionError as exc:
+            raise exc
+        finally:
+            test_file.unlink()
+            shutil.rmtree(data_dir)
 
 
 class TestFindLatestEntries:
     def test_latest_has_entries(self):
         """If there are entries, return them."""
+        data_dir = TEMP_DIR / "timeclock_data"
+        data_dir.mkdir(exist_ok=True)
+
         entries = ["240919 13:45", "240919 14:45"]
-        with patch("timeclock.timeclock._DATA_DIR", TEMP_DIR):
-            test_file = mod._get_date_filename()
-            _ = test_file.write_text("\n".join(entries))
-            result = mod._find_latest_entries()
+        test_file = data_dir / "240919.txt"
+        _ = test_file.write_text("\n".join(entries))
+        result = mod._find_latest_entries(data_dir)
         try:
-            assert result == (mod._now_str()[:6], entries)
+            assert result == (test_file.stem, entries)
         except AssertionError as exc:
             raise exc
         finally:
             test_file.unlink()
-
+            shutil.rmtree(data_dir)
 
     def test_empty_file_more_recent(self):
         """If the file is empty, return the entries from the previous day."""
+        data_dir = TEMP_DIR / "timeclock_data"
+        data_dir.mkdir(exist_ok=True)
+
         entries = ["240918 13:45", "240918 14:45"]
         prev_day = "240918"
         this_day = "240919"
         with patch("timeclock.timeclock._DATA_DIR", TEMP_DIR):
-            test_file_prev = mod._get_date_filename(prev_day)
+            test_file_prev = data_dir / f"{prev_day}.txt"
             _ = test_file_prev.write_text("\n".join(entries))
-            test_file_next = mod._get_date_filename(this_day)
+            test_file_next = data_dir / f"{this_day}.txt"
             _ = test_file_next.write_text("")
-            result = mod._find_latest_entries()
+            result = mod._find_latest_entries(data_dir)
         try:
             assert result == (prev_day, entries)
         except AssertionError as exc:
@@ -122,5 +131,4 @@ class TestFindLatestEntries:
         finally:
             test_file_prev.unlink()
             test_file_next.unlink()
-
-
+            shutil.rmtree(data_dir)
