@@ -44,7 +44,7 @@ _TIME_FORMAT = "%y%m%d %H:%M"
 
 # Ignore brief periods between clock in and out. These may have been solely to see
 # the report.
-_MIN_DELTA = datetime.timedelta(minutes=0)
+_MIN_DELTA = datetime.timedelta(minutes=5)
 
 # Print a report (the same report that is displayed when you run the script) at the
 # bottom of the file after each update. Use this string to let _read_today_file know
