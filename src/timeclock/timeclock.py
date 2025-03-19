@@ -30,9 +30,11 @@ from __future__ import annotations
 
 import datetime
 import itertools as it
-from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import TypeVar
+from typing import TYPE_CHECKING, TypeVar
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 _DATA_DIR = Path(__file__).parent / "timeclock_data"
 _DATA_DIR.mkdir(exist_ok=True)
@@ -85,9 +87,14 @@ def _now_str() -> str:
     return _dt_to_str(datetime.datetime.now())
 
 
+def _today_str() -> str:
+    """Return the current date as a string."""
+    return _now_str()[:6]
+
+
 def _prev_midnight_str() -> str:
     """Return the time of the previous midnight as a string."""
-    return _now_str()[:6] + " 00:00"
+    return _today_str() + " 00:00"
 
 
 def _next_midnight_str(yymmdd: str) -> str:
@@ -128,3 +135,51 @@ def _generate_report(entries: list[str]) -> str:
     report.append(f"Virtual clock out:\n{_dt_to_str(virtual_clock_out)}")
     return "\n\n".join(report)
 
+
+# ===================================================================================
+#   read and write time entries
+# ===================================================================================
+
+
+def _get_date_filename(yymmdd: str | None = None) -> Path:
+    """Return a filename based on today's date.
+
+    :param date: optionally give a date to use instead of today's date. "yymmdd"
+    """
+    if yymmdd is None:
+        yymmdd = _today_str()
+    return _DATA_DIR / f"{yymmdd}.txt"
+
+
+def _is_not_report_delimiter(line: str) -> bool:
+    """Return True if the line is the delimiter."""
+    return line != _REPORT_DELIMITER
+
+
+def _read_date_file(yymmdd: str | None = None) -> list[str]:
+    """Return the time entries in file.
+
+    :param date: optionally give a date to use instead of today's date. "yymmdd"
+    """
+    filename = _get_date_filename(yymmdd)
+    if not filename.exists():
+        return []
+    with filename.open() as file:
+        lines = filter(None, map(str.strip, file.readlines()))
+    return list(it.takewhile(_is_not_report_delimiter, lines))
+
+
+def _overwrite_date_file(entries: list[str], date: str | None = None) -> None:
+    """Overwrite a date file with given entries. Delete file if no entries.
+
+    :param entries: the time entries to write.
+    :param date: optionally give a date to use instead of today's date. "yymmdd"
+    """
+    filename = _get_date_filename(date)
+    if not entries:
+        if filename.exists():
+            filename.unlink()
+        return
+    report = _generate_report(entries)
+    with filename.open("w") as file:
+        _ = file.write("\n".join([*entries, _REPORT_DELIMITER, report]))
