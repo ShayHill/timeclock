@@ -113,6 +113,8 @@ repos:
   # D203 1 blank line required before class docstring (incompatible with D211)
   # D213 multi line summary second line (incompatible with D212):
   # ISC003 Explicitly concatenated string should be implicitly concatenated
+  # DTZ datetime wants a timezone
+  # PLR2004 magic number
   rev: 'v0.11.0'
   hooks:
     - id: ruff
@@ -120,7 +122,7 @@ repos:
       args:
       - --target-version=py39
       - --select=ALL
-      - --ignore=COM812,D203,D213,ISC003,DTZ
+      - --ignore=COM812,D203,D213,ISC003,DTZ,PLR2004
       - --fix
       - --fixable=RUF022
     - id: ruff

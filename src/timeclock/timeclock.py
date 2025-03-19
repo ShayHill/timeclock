@@ -30,20 +30,21 @@ from __future__ import annotations
 
 import datetime
 import itertools as it
+import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, TypeVar
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
-_DATA_DIR = Path(__file__).parent / "timeclock_data"
+_DATA_DIR = Path(__file__).parent / f"{Path(__file__).stem}_data"
 _DATA_DIR.mkdir(exist_ok=True)
 
 _TIME_FORMAT = "%y%m%d %H:%M"
 
 # Ignore brief periods between clock in and out. These may have been solely to see
 # the report.
-_MIN_DELTA = datetime.timedelta(minutes=5)
+_MIN_DELTA = datetime.timedelta(minutes=0)
 
 # Print a report (the same report that is displayed when you run the script) at the
 # bottom of the file after each update. Use this string to let _read_today_file know
@@ -121,6 +122,8 @@ def _get_cumulative_time(entries: list[str]) -> datetime.timedelta:
 
 def _generate_report(entries: list[str]) -> str:
     """Get enough information to inform user of state and enter vals in timeclock."""
+    if not entries:
+        return "No entries found.\n\n"
     report: list[str] = []
     if _is_clocked_in(entries):
         report.append(f"state:\nclocked IN as of {entries[-1]}.")
@@ -130,10 +133,22 @@ def _generate_report(entries: list[str]) -> str:
     report.append(f"initial clock in:\n{entries[0]}")
     cumulative_time = _get_cumulative_time(entries)
     report.append(f"cumulative time:\n{cumulative_time}")
-
     virtual_clock_out = _str_to_dt(entries[0]) + cumulative_time
     report.append(f"Virtual clock out:\n{_dt_to_str(virtual_clock_out)}")
-    return "\n\n".join(report)
+    return "\n\n".join(report) + "\n\n"
+
+
+def _generate_one_line_report(yymmdd: str, entries: list[str]) -> str:
+    """Return a one line report for a single day."""
+    if not entries:
+        return f"{yymmdd}:\nNo entries found."
+    cumulative_time = _get_cumulative_time(entries)
+    items = [
+        entries[0],
+        _dt_to_str(_str_to_dt(entries[0]) + cumulative_time),
+        cumulative_time,
+    ]
+    return " | ".join(map(str, items))
 
 
 # ===================================================================================
@@ -210,3 +225,83 @@ def _find_latest_clock_in() -> tuple[str | None, list[str]]:
     if _is_clocked_in(entries):
         return yymmdd, entries
     return None, []
+
+
+# ===================================================================================
+#   clock in and out
+# ===================================================================================
+
+
+class ClockInStateError(RuntimeError):
+    """Raised when trying to clock in while already clocked in or vice versa."""
+
+
+def _clip_last_time_delta_if_short(entries: list[str]) -> None:
+    """If the delta between the last two time entries is short, remove it."""
+    if len(entries) < 2:
+        return
+    beg_time, end_time = map(_str_to_dt, entries[-2:])
+    if end_time - beg_time < _MIN_DELTA:
+        del entries[-2:]
+
+
+def clock_in() -> None:
+    """Add a clock in entry to today's file."""
+    _, entries = _find_latest_clock_in()
+    if entries:
+        msg = "You are already clocked in. Clock out before clocking in again."
+        raise ClockInStateError(msg)
+
+    entries = _read_date_file()
+    entries.append(_now_str())
+    _clip_last_time_delta_if_short(entries)
+    _overwrite_date_file(entries)
+    _ = sys.stdout.write(_generate_report(entries))
+    _ = input("Press enter to continue.")
+
+
+def clock_out() -> None:
+    """Add a clock out to today's file and print report."""
+    yymmdd, entries = _find_latest_clock_in()
+    if not entries:
+        msg = "You are already clocked out. Clock in before clocking out."
+        raise ClockInStateError(msg)
+
+    if yymmdd != _today_str():
+        if yymmdd is None:
+            msg = "Unexpected error: clock in found but no date returned."
+            raise RuntimeError(msg)
+        entries.append(_next_midnight_str(yymmdd))
+        _clip_last_time_delta_if_short(entries)
+        _overwrite_date_file(entries, yymmdd)
+        entries = [_prev_midnight_str()]
+    entries.append(_now_str())
+    _clip_last_time_delta_if_short(entries)
+    _overwrite_date_file(entries)
+    _ = sys.stdout.write(_generate_report(entries))
+    _ = input("Press enter to continue.")
+
+
+def print_history() -> None:
+    """Touch up any files that were hand edited then print a history report."""
+    history: list[str] = []
+    for data_file in _DATA_DIR.iterdir():
+        entries = _read_date_file(data_file.stem)
+        _overwrite_date_file(entries, data_file.stem)
+
+        history.append(_generate_one_line_report(data_file.stem, entries))
+    _ = sys.stdout.write("\n\n" + "\n".join(history) + "\n\n")
+    _ = input("Press enter to continue.")
+
+
+def toggle_clock() -> None:
+    """Clock in if clocked out and vice versa."""
+    try:
+        clock_in()
+    except ClockInStateError:
+        clock_out()
+    print_history()
+
+
+if __name__ == "__main__":
+    toggle_clock()
