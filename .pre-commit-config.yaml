@@ -120,7 +120,7 @@ repos:
       args:
       - --target-version=py39
       - --select=ALL
-      - --ignore=COM812,D203,D213,ISC003
+      - --ignore=COM812,D203,D213,ISC003,DTZ
       - --fix
       - --fixable=RUF022
     - id: ruff
