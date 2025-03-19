@@ -4,7 +4,7 @@ A script to keep track of cumulative time worked on various tasks.
 
 ## Usage
 
-* You don't need the project files or any venv. Right click the file `src/timeclock/timeclock.py` and save it somewhere convenient. When you double click it (presuming you have Python installed and associated with `*.py` files, the script will create a folder, `timeclock_data` and clock you in. When you double click it again, it will clock you out. If you were clocked in or clocked out for less than five minutes, the entry will be ignored.
+* You don't need the project files or any venv. Download the raw file at `src/timeclock/timeclock.py` and save it somewhere convenient. When you double click it (presuming you have Python installed and associated with `*.py` files, the script will create a folder, `timeclock_data` and clock you in. When you double click it again, it will clock you out. If you were clocked in or clocked out for less than five minutes, the entry will be ignored.
 
 Each time you clock in or clock out, you will see a report.
 
