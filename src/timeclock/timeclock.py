@@ -205,13 +205,13 @@ def _overwrite_date_file(entries: list[str], date: str | None = None) -> None:
 # ===================================================================================
 
 
-def _find_latest_entries() -> tuple[str | None, list[str]]:
+def _find_latest_entries(data_dir: Path) -> tuple[str | None, list[str]]:
     """Return the stem of the file with the latest entries. None if no entries.
 
     Will ignore empty files in case you manually edited a file to remove all entries
     and did not delete it.
     """
-    for data_file in reversed(list(_DATA_DIR.iterdir())):
+    for data_file in reversed(list(data_dir.iterdir())):
         entries = _read_date_file(data_file.stem)
         if not entries:
             continue
@@ -219,9 +219,9 @@ def _find_latest_entries() -> tuple[str | None, list[str]]:
     return None, []
 
 
-def _find_latest_clock_in() -> tuple[str | None, list[str]]:
+def _find_latest_clock_in(data_dir: Path) -> tuple[str | None, list[str]]:
     """Return the stem of the file with the latest clock in. None if not clocked in."""
-    yymmdd, entries = _find_latest_entries()
+    yymmdd, entries = _find_latest_entries(data_dir)
     if _is_clocked_in(entries):
         return yymmdd, entries
     return None, []
@@ -245,9 +245,9 @@ def _clip_last_time_delta_if_short(entries: list[str]) -> None:
         del entries[-2:]
 
 
-def clock_in() -> None:
+def clock_in(data_dir: Path) -> None:
     """Add a clock in entry to today's file."""
-    _, entries = _find_latest_clock_in()
+    _, entries = _find_latest_clock_in(data_dir)
     if entries:
         msg = "You are already clocked in. Clock out before clocking in again."
         raise ClockInStateError(msg)
@@ -260,9 +260,9 @@ def clock_in() -> None:
     _ = input("Press enter to continue.")
 
 
-def clock_out() -> None:
+def clock_out(data_dir: Path) -> None:
     """Add a clock out to today's file and print report."""
-    yymmdd, entries = _find_latest_clock_in()
+    yymmdd, entries = _find_latest_clock_in(data_dir)
     if not entries:
         msg = "You are already clocked out. Clock in before clocking out."
         raise ClockInStateError(msg)
@@ -284,6 +284,7 @@ def clock_out() -> None:
 
 def print_history() -> None:
     """Touch up any files that were hand edited then print a history report."""
+    # TODO: print for all data dirs
     history: list[str] = []
     for data_file in _DATA_DIR.iterdir():
         entries = _read_date_file(data_file.stem)
@@ -297,10 +298,20 @@ def print_history() -> None:
 def toggle_clock() -> None:
     """Clock in if clocked out and vice versa."""
     try:
-        clock_in()
+        clock_in(_DATA_DIR)
     except ClockInStateError:
-        clock_out()
+        clock_out(_DATA_DIR)
     print_history()
+
+
+# ===================================================================================
+#   multiple time clocks
+# ===================================================================================
+
+def _iter_data_dirs() -> Iterator[Path, ...]:
+    """Return all data directories."""
+    return tuple(_DATA_DIR.iterdir())
+
 
 
 if __name__ == "__main__":
