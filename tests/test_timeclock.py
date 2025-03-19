@@ -37,3 +37,22 @@ class TestStrConversion:
         assert timeclock._next_midnight_str("250319") == "250319 23:59"
 
 
+class TestInterpretTimeEntries:
+    def test_is_clocked_in(self):
+        """Return True if the number of entries is odd."""
+        assert timeclock._is_clocked_in(["250319 13:45"]) is True
+        assert timeclock._is_clocked_in(["250319 13:45", "250319 14:45"]) is False
+        assert timeclock._is_clocked_in(["250319 13:45", "250319 14:45", "250319 15:45"]) is True
+        assert timeclock._is_clocked_in([]) is False
+
+    def test_get_cumulative_time(self):
+        """Only testing clocked out cumulative time. Clocked in time would require
+        somehow moccing the current time.
+        """
+        entries = [
+            "250319 13:45",
+            "250319 14:45",
+            "250319 15:45",
+            "250319 16:45",
+        ]
+        assert timeclock._get_cumulative_time(entries) == datetime.timedelta(hours=2)
