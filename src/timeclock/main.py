@@ -17,8 +17,8 @@ are written as four columns (date, time-in, time-out, description). No header ro
 **Clocking rules**
 
 Clocking in to one caller runs ``_clock_out_all`` first so at most one caller stays
-clocked in. Clock-out prompts for a description; a blank input (or just closing the
-window) keeps the previous interval description (handled in ``Interval.clock_out``).
+clocked in. Clock-out prompts for a description; a blank input keeps the previous
+interval description (handled in ``Interval.clock_out``).
 
 If clock-out falls on a later calendar day than clock-in, ``Interval`` inserts
 end-of-day and start-of-day boundary intervals so the chain stays consistent. You will
@@ -51,6 +51,7 @@ from __future__ import annotations
 import csv
 import ctypes
 import datetime as dt
+import sys
 import traceback
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -114,6 +115,13 @@ class Interval:
         return self.end is None
 
     @property
+    def _prev_description(self) -> str:
+        """Return the description of the previous interval, if any."""
+        if self.prev is None:
+            return ""
+        return self.prev.description
+
+    @property
     def duration(self) -> dt.timedelta:
         """Return interval duration, or zero when still clocked in."""
         if self.end is None:
@@ -135,7 +143,9 @@ class Interval:
         prev = None if self.beg == dt.datetime.min else self  # drom dummy interval
         return type(self)(clock_in, prev=prev)
 
-    def clock_out(self, clock_out: dt.datetime, description: str) -> Interval:
+    def clock_out(
+        self, clock_out: dt.datetime, description: str | None = None
+    ) -> Interval:
         """Clock out and potentially merge with previous interval.
 
         :param clock_out: The datetime of the clock-out
@@ -151,10 +161,10 @@ class Interval:
         if not self.is_clocked_in:
             msg = "Cannot clock out if not clocked in."
             raise ValueError(msg)
-        description = description.strip()
-        if not description and self.prev:
-            description = self.prev.description or ""
-
+        if description is None:
+            prompt = "Description for interval"
+            prompt += f" (blank=continue '{self._prev_description}'): "
+            description = input(prompt).strip() or self._prev_description
         node = self._fill_any_intervening_days(clock_out, description)
         node.end = clock_out
         node.description = description
@@ -340,10 +350,11 @@ class Punchclock:
         self.tail = self.tail.clock_in(punch_at)
         self.paths.write_csv(self.tail)
 
-    def clock_out(self, description: str) -> None:
+    def clock_out(self) -> None:
         """Clock out and persist to CSV."""
-
-        self.tail = self.tail.clock_out(dt.datetime.now(), description)
+        now = dt.datetime.now()
+        _ = sys.stdout.write(f"Clocking out {self.paths.stem} at {now}.\n")
+        self.tail = self.tail.clock_out(now)
         self.paths.write_csv(self.tail)
 
     @property
@@ -499,20 +510,8 @@ def _clock_out(punchclock: Punchclock) -> None:
 
     :param punchclock: Punchclock instance for one caller
     """
-    beg_tail = punchclock.tail
-    prev_desc = punchclock.previous_interval_description
-    punchclock.clock_out("")
+    punchclock.clock_out()
     _display_clocked_out_state(punchclock)
-    prompt = f"Description for {punchclock.paths.stem}"
-    prompt += f" interval (blank=continue '{prev_desc}'): "
-    description = input(prompt)
-    if description:
-        node = punchclock.tail
-        while node is not None:
-            node.description = description
-            if node == beg_tail:
-                break
-            node = node.prev
 
 
 def _clock_out_all() -> None:
